@@ -1,0 +1,9 @@
+{
+    "go.testFlags": [
+        "-v",
+        "-count=1"
+    ],
+    "files.exclude": {
+        "vendor": true
+    }
+}
