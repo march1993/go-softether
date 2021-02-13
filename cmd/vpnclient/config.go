@@ -6,11 +6,12 @@ import (
 )
 
 var config struct {
-	Username       string
-	HashedPassword string
-	Host           string
-	Port           int
-	HubName        string
+	Username           string
+	HashedPassword     string
+	Host               string
+	Port               int
+	HubName            string
+	InsecureSkipVerify bool
 }
 
 func init() {

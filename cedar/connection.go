@@ -13,7 +13,9 @@ type Connection struct {
 
 	UseTicket bool // Ticket using flag
 	Ticket    [mayaqua.SHA1_SIZE]byte
-	Session   Session
+	Name      string // Connection Name
+	// CipherName string
+	Session *Session
 
 	ServerVer   uint32
 	ServerBuild uint32
@@ -28,8 +30,15 @@ type Connection struct {
 	// ssl
 	firstSock *mayaqua.Sock
 
+	// tcp
+	tubeSock *mayaqua.Sock
+	tcp      []*mayaqua.Sock
+
 	// encrypt
 	Random [mayaqua.SHA1_SIZE]byte
+
+	// TODO
+	IsInProc bool
 }
 
 // ClientAuth client authorization
@@ -53,4 +62,19 @@ type ClientOption struct {
 	RequireMonitorMode       bool
 	DisableQoS               bool
 	NoUdpAcceleration        bool
+}
+
+// StartTunnelingMode start tunneling mode
+func (c *Connection) StartTunnelingMode() {
+	if c.Protocol == CONNECTION_TCP {
+		if c.IsInProc {
+			c.tubeSock = c.firstSock
+		}
+
+		c.tcp = append(c.tcp, c.firstSock)
+		c.firstSock = nil
+	} else {
+		// TODO: UDP
+
+	}
 }

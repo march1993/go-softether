@@ -3,5 +3,6 @@
     "HashedPassword": "base64 here",
     "Host": "example.com",
     "Port": 5555,
-    "HubName": "DEFAULT"
+    "HubName": "DEFAULT",
+    "InsecureSkipVerify": false
 }

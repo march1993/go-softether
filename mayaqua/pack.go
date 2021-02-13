@@ -316,6 +316,16 @@ func (p *Pack) AddBool(name string, b bool) *Element {
 	return e
 }
 
+// GetBool get bool
+func (p *Pack) GetBool(name string) bool {
+	return p.GetBoolEx(name, 0)
+}
+
+// GetBoolEx get bool
+func (p *Pack) GetBoolEx(name string, index uint32) bool {
+	return p.GetIntEx(name, index) != 0
+}
+
 // AddInt add integer value
 func (p *Pack) AddInt(name string, i uint32) *Element {
 	e := &Element{

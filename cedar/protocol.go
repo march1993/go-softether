@@ -7,6 +7,7 @@ import (
 	"go-softether/mayaqua"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -22,17 +23,18 @@ func init() {
 func (c *Connection) ClientConnectToServer() (*mayaqua.Sock, error) {
 	tlsConf := tls.Config{
 		InsecureSkipVerify: c.InsecureSkipVerify,
-		// CipherSuites:       []uint16{tls.TLS_RSA_WITH_RC4_128_SHA},
 		ServerName:         c.Host,
 		ClientSessionCache: sessionCache,
 	}
 
-	s, err := tls.Dial("tcp", c.Host+":"+strconv.Itoa(c.Port), &tlsConf)
-	sock := mayaqua.NewSock(s)
-	if nil == err {
+	if r, err := net.Dial("tcp", c.Host+":"+strconv.Itoa(c.Port)); nil != err {
+		return nil, err
+	} else {
+		s := tls.Client(r, &tlsConf)
+		sock := mayaqua.NewSock(s, r)
 		c.firstSock = sock
+		return sock, nil
 	}
-	return sock, err
 }
 
 // ClientUploadSignature Upload a signature
@@ -205,6 +207,15 @@ func (c *Connection) ClientUploadAuth() (*http.Request, error) {
 	return mayaqua.HttpClientSend(c.firstSock, p)
 }
 
+// ClientUploadAuth2 client upload additional auth
+func (c *Connection) ClientUploadAuth2() (*http.Request, error) {
+	p := &mayaqua.Pack{}
+	p.AddStr("method", "additional_connect")
+	p.AddData("session_key", c.Session.SessionKey[:])
+	c.PackAddClientVersion(p)
+	return mayaqua.HttpClientSend(c.firstSock, p)
+}
+
 // PackLoginWithAnonymous pack login with anonymouse
 func PackLoginWithAnonymous(hubname, username string) *mayaqua.Pack {
 	// Validate arguments
@@ -282,4 +293,90 @@ func (c *Connection) CreateNodeInfo() NodeInfo {
 		ProxyIpAddress6:    [16]byte{},
 		Padding:            [256]byte{},
 	}
+}
+
+// ParseWelcomeFromPack parse welcome from pack
+func ParseWelcomeFromPack(p *mayaqua.Pack) (sessionName, connectionName string, policy Policy) {
+	sessionName = p.GetStr("session_name")
+	connectionName = p.GetStr("connection_name")
+	policy = PackGetPolicy(p)
+
+	return
+}
+
+// PackGetPolicy get policy from pack
+func PackGetPolicy(p *mayaqua.Pack) Policy {
+	po := Policy{}
+	PackGetPolicyBool := func(k string) bool {
+		return p.GetBool("policy:" + k)
+	}
+
+	po.Access = PackGetPolicyBool("Access")
+	po.DHCPFilter = PackGetPolicyBool("DHCPFilter")
+	po.DHCPNoServer = PackGetPolicyBool("DHCPNoServer")
+	po.DHCPForce = PackGetPolicyBool("DHCPForce")
+	po.NoBridge = PackGetPolicyBool("NoBridge")
+	po.NoRouting = PackGetPolicyBool("NoRouting")
+	po.PrivacyFilter = PackGetPolicyBool("PrivacyFilter")
+	po.NoServer = PackGetPolicyBool("NoServer")
+	po.CheckMac = PackGetPolicyBool("CheckMac")
+	po.CheckIP = PackGetPolicyBool("CheckIP")
+	po.ArpDhcpOnly = PackGetPolicyBool("ArpDhcpOnly")
+	po.MonitorPort = PackGetPolicyBool("MonitorPort")
+	po.NoBroadcastLimiter = PackGetPolicyBool("NoBroadcastLimiter")
+	po.FixPassword = PackGetPolicyBool("FixPassword")
+	po.NoQoS = PackGetPolicyBool("NoQoS")
+	// Ver 3
+	po.RSandRAFilter = PackGetPolicyBool("RSandRAFilter")
+	po.RAFilter = PackGetPolicyBool("RAFilter")
+	po.DHCPv6Filter = PackGetPolicyBool("DHCPv6Filter")
+	po.DHCPv6NoServer = PackGetPolicyBool("DHCPv6NoServer")
+	po.NoRoutingV6 = PackGetPolicyBool("NoRoutingV6")
+	po.CheckIPv6 = PackGetPolicyBool("CheckIPv6")
+	po.NoServerV6 = PackGetPolicyBool("NoServerV6")
+	po.NoSavePassword = PackGetPolicyBool("NoSavePassword")
+	po.FilterIPv4 = PackGetPolicyBool("FilterIPv4")
+	po.FilterIPv6 = PackGetPolicyBool("FilterIPv6")
+	po.FilterNonIP = PackGetPolicyBool("FilterNonIP")
+	po.NoIPv6DefaultRouterInRA = PackGetPolicyBool("NoIPv6DefaultRouterInRA")
+	po.NoIPv6DefaultRouterInRAWhenIPv6 = PackGetPolicyBool("NoIPv6DefaultRouterInRAWhenIPv6")
+
+	PackGetPolicyUint := func(k string) uint32 {
+		return p.GetInt("policy:" + k)
+	}
+
+	// UINT value
+	// Ver 2
+	po.MaxConnection = PackGetPolicyUint("MaxConnection")
+	po.TimeOut = PackGetPolicyUint("TimeOut")
+	po.MaxMac = PackGetPolicyUint("MaxMac")
+	po.MaxIP = PackGetPolicyUint("MaxIP")
+	po.MaxUpload = PackGetPolicyUint("MaxUpload")
+	po.MaxDownload = PackGetPolicyUint("MaxDownload")
+	po.MultiLogins = PackGetPolicyUint("MultiLogins")
+	// Ver 3
+	po.MaxIPv6 = PackGetPolicyUint("MaxIPv6")
+	po.AutoDisconnect = PackGetPolicyUint("AutoDisconnect")
+	po.VLanId = PackGetPolicyUint("VLanId")
+
+	// Ver 3 flag
+	po.Ver3 = PackGetPolicyBool("Ver3")
+
+	return po
+
+}
+
+// ErrInvalidSessionKey invalid session key
+var ErrInvalidSessionKey = errors.New("ErrInvalidSessionKey")
+
+// GetSessionKeyFromPack get session key from pack
+func GetSessionKeyFromPack(p *mayaqua.Pack) (sessionKey mayaqua.Sha1Sum, sessionKey32 uint32, err error) {
+	if k := p.GetData("session_key"); int(mayaqua.SHA1_SIZE) != len(k) {
+		err = ErrInvalidSessionKey
+	} else {
+		copy(sessionKey[:], k)
+	}
+
+	sessionKey32 = p.GetInt("session_key_32")
+	return
 }

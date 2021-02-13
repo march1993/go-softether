@@ -3,32 +3,32 @@ package mayaqua
 import (
 	"bufio"
 	"crypto/tls"
-	"io"
 	"net"
 )
 
 // Sock used by go-softether
 type Sock struct {
-	io.ReadWriteCloser
+	*tls.Conn
+	raw      net.Conn
 	reader   *bufio.Reader
 	RemoteIP string
+}
+
+// WTFWriteRaw WTF? see session.go
+func (s *Sock) WTFWriteRaw(p []byte) (n int, err error) {
+	return s.raw.Write(p)
 }
 
 func (s *Sock) Read(p []byte) (n int, err error) {
 	return s.reader.Read(p)
 }
 
-// Write hack
-// func (s *Sock) Write(p []byte) (n int, err error) {
-// 	fmt.Println("sending:", string(p))
-// 	return s.ReadWriteCloser.Write(p)
-// }
-
 // NewSock new sock
-func NewSock(s *tls.Conn) *Sock {
+func NewSock(s *tls.Conn, r net.Conn) *Sock {
 	return &Sock{
-		ReadWriteCloser: s,
-		reader:          bufio.NewReader(s),
-		RemoteIP:        s.RemoteAddr().(*net.TCPAddr).IP.String(),
+		Conn:     s,
+		raw:      r,
+		reader:   bufio.NewReaderSize(s, 32*1024),
+		RemoteIP: s.RemoteAddr().(*net.TCPAddr).IP.String(),
 	}
 }

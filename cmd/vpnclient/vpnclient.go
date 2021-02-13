@@ -14,22 +14,28 @@ var (
 )
 
 func main() {
-	if err := connectToServer(config.Host, config.Port, config.Username, config.HashedPassword, config.HubName); nil != err {
+	if err := connectToServer(config.Host, config.Port, config.Username, config.HashedPassword, config.HubName, config.InsecureSkipVerify); nil != err {
 		fmt.Println("error: " + err.Error())
 	}
 }
 
-func connectToServer(host string, port int, username, hashedPassword, hubName string) error {
+func connectToServer(host string, port int, username, hashedPassword, hubName string, insecureSkipVerify bool) error {
+	session := cedar.Session{}
+	session.ClientAuth.AuthType = cedar.CLIENT_AUTHTYPE_PASSWORD
+	session.ClientAuth.Username = username
+
 	conn := cedar.Connection{
-		Cedar:       cedar.NewCedar(),
-		Host:        host,
-		Port:        port,
-		ClientVer:   1000,
-		ClientBuild: 1000,
-		ClientStr:   "Go-SoftEther Client",
+		Cedar:              cedar.NewCedar(),
+		Host:               host,
+		Port:               port,
+		ClientVer:          1000,
+		ClientBuild:        1000,
+		ClientStr:          "Go-SoftEther Client",
+		Session:            &session,
+		InsecureSkipVerify: insecureSkipVerify,
 	}
-	conn.Session.ClientAuth.AuthType = cedar.CLIENT_AUTHTYPE_PASSWORD
-	conn.Session.ClientAuth.Username = username
+
+	session.Connection = &conn
 
 	// conn.Session.ClientAuth.HashedPassword = mayaqua.Sha0([]byte(password + strings.ToUpper(username)))
 	if pwd, err := base64.StdEncoding.DecodeString(hashedPassword); nil != err {
@@ -41,6 +47,7 @@ func connectToServer(host string, port int, username, hashedPassword, hubName st
 	}
 	conn.Session.ClientOption.HubName = hubName
 	conn.Session.ClientOption.MaxConnection = 1
+	conn.Session.ClientOption.UseEncrypt = true
 
 	if s, err := conn.ClientConnectToServer(); nil != err {
 		return err
@@ -58,24 +65,56 @@ func connectToServer(host string, port int, username, hashedPassword, hubName st
 
 		// ClientCheckServerCert unnecessary?
 
+		var welcome *mayaqua.Pack
 		if req, err := conn.ClientUploadAuth(); nil != err {
 			return err
 		} else if p, err := mayaqua.HttpClientRecv(s, req); nil != err {
 			return err
 		} else if e := p.GetError(); 0 != e {
-			// fmt.Printf("%+v\n", p)
-			// for _, e := range p.Elements {
-			// 	fmt.Printf("%+v\n", e)
-			// }
 			return cedar.ErrorCode(e)
 		} else if brandedCfroms := p.GetStr("branded_cfroms"); len(brandedCfroms) > 0 && "Branded_VPN" != brandedCfroms {
 			return cedar.ERR_BRANDED_C_FROM_S
 		} else {
-			fmt.Printf("p: %+v\n", p)
+			welcome = p
 		}
 
 		// TODO: client update notification
 
-		return nil
+		if msg := string(welcome.GetData("Msg")); "" != msg {
+			// TODO: msg from server
+		}
+
+		if welcome.GetInt("Redirect") != 0 {
+			// TODO: redirect
+		}
+
+		// fmt.Println("use_fast_rc4:", welcome.GetInt("use_fast_rc4"))
+		sessionName, connectionName, policy := cedar.ParseWelcomeFromPack(welcome)
+		fmt.Println("SessionName:", sessionName, "ConnectionName:", connectionName)
+
+		// fmt.Printf("state: %+v\n", c.Conn.ConnectionState())
+
+		if sessionKey, sessionKey32, err := cedar.GetSessionKeyFromPack(welcome); nil != err {
+			return err
+		} else {
+			conn.Session.SessionKey = sessionKey
+			conn.Session.SessionKey32 = sessionKey32
+		}
+
+		if welcome.GetInt("use_encrypt") == 0 {
+			return errors.New("use_encrypt is false")
+		}
+		conn.Session.Policy.MaxConnection = welcome.GetInt("max_connection")
+
+		// TODO: Deploy and update connection parameters
+
+		conn.Name = connectionName
+
+		conn.Session.Name = sessionName
+		conn.Session.Policy = policy
+
+		conn.StartTunnelingMode()
+
+		return conn.Session.Main()
 	}
 }
