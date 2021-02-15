@@ -1,2 +1,5 @@
 # vendor directory
 /vendor
+
+# private notes
+/.private.md

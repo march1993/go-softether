@@ -12,6 +12,7 @@ var config struct {
 	Port               int
 	HubName            string
 	InsecureSkipVerify bool
+	LocalAdapterMAC    string
 }
 
 func init() {

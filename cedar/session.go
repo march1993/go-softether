@@ -1,8 +1,12 @@
 package cedar
 
 import (
-	"fmt"
+	"encoding/binary"
+	"go-softether/adapter"
 	"go-softether/mayaqua"
+	"io"
+	"io/ioutil"
+	"math/rand"
 	"time"
 )
 
@@ -51,105 +55,73 @@ type NodeInfo struct {
 }
 
 // Main main
-func (se *Session) Main() error {
+func (se *Session) Main() (adapter.Adapter, error) {
 	s := se.Connection.tcp[0]
 
 	// WTF: I don't know why the following line is needed, other wise, an OpenSSL protocol version unsupported error is returned
 	s.WTFWriteRaw([]byte{0, 1, 2, 3, 4})
 
-	go func() {
-		if true {
-			return
-		}
-
-		if s, err := se.Connection.ClientConnectToServer(); nil != err {
-			panic(err)
-		} else {
-			if req, err := se.Connection.ClientUploadSignature(s); nil != err {
-				panic(err)
-			} else if err := se.Connection.ClientDownloadHello(s, req); nil != err {
-				panic(err)
-			}
-
-			var welcome *mayaqua.Pack
-			if req, err := se.Connection.ClientUploadAuth(); nil != err {
-				panic(err)
-			} else if p, err := mayaqua.HttpClientRecv(s, req); nil != err {
-				panic(err)
-			} else if e := p.GetError(); 0 != e {
-				// fmt.Printf("%+v\n", p)
-				// for _, e := range p.Elements {
-				// 	fmt.Printf("%+v\n", e)
-				// }
-				panic(ErrorCode(e).Error())
-			} else if brandedCfroms := p.GetStr("branded_cfroms"); len(brandedCfroms) > 0 && "Branded_VPN" != brandedCfroms {
-				panic(ERR_BRANDED_C_FROM_S)
-			} else {
-				welcome = p
-			}
-
-			for _, e := range welcome.Elements {
-				fmt.Printf("addele: %+v\n", e)
-			}
-			direction := welcome.GetInt("direction")
-			fmt.Println("additional direction:", direction)
-
-			go func() {
-				for {
-					alive := []byte{255, 255, 255, 255, 0, 0, 0, 37, 236, 183, 104, 30, 220, 134, 245, 10, 46, 10, 13, 48, 102, 152, 43, 158, 85, 142, 47, 5, 211, 48, 32, 23, 117, 161, 101, 242, 4, 73, 23, 241, 0, 127, 15, 221, 6}
-					// alive = []byte{0, 0, 0, 1, 0, 0, 0, 0}
-					if _, err := s.Write(alive); nil != err {
-						panic(err)
-					}
-					fmt.Println("additional: sent zero num")
-					// return
-					time.Sleep(1 * time.Second)
-				}
-			}()
-			for {
-				buf := make([]byte, 1500)
-				// s.Conn
-				fmt.Println("additional begin:", time.Now().Local().String())
-				if n, err := s.Read(buf); nil != err {
-					fmt.Println("n:", n, "error:", time.Now().Local().String())
-					fmt.Printf("error: %+v\n", err)
-					panic(err)
-				} else {
-					fmt.Println("additional received: ", n)
-					// fmt.Printf("%x\n", buf[:n])
-					fmt.Println(buf[:n])
-				}
-				fmt.Println("additional end:", time.Now().Local().String())
-			}
-		}
-	}()
-	go func() {
-
-		for {
-			alive := []byte{255, 255, 255, 255, 0, 0, 0, 37, 236, 183, 104, 30, 220, 134, 245, 10, 46, 10, 13, 48, 102, 152, 43, 158, 85, 142, 47, 5, 211, 48, 32, 23, 117, 161, 101, 242, 4, 73, 23, 241, 0, 127, 15, 221, 6}
-
-			if _, err := s.Write(alive); nil != err {
-				panic(err)
-			}
-
-			fmt.Println("sent zero num")
-			// return
-			time.Sleep(1 * time.Second)
-		}
-	}()
-	for {
-		buf := make([]byte, 1500)
-		// s.Conn
-		fmt.Println("begin:", time.Now().Local().String())
-		if n, err := s.Read(buf); nil != err {
-			fmt.Println("n:", n, "error:", time.Now().Local().String())
-			fmt.Printf("error: %+v\n", err)
-			return err
-		} else {
-			fmt.Println("received[1]: ", n)
-			// fmt.Printf("%x\n", buf[:n])
-			fmt.Println(buf[:n])
-		}
-		fmt.Println("end:", time.Now().Local().String())
+	sessionAdapter := &sessionAdapter{
+		Session: se,
+		l2r:     make(chan []adapter.Packet, 16),
+		r2l:     make(chan []adapter.Packet, 16),
 	}
+
+	go func() {
+		// local to remote
+		for {
+			sz := uint32(0)
+			if err := binary.Read(s, binary.BigEndian, &sz); nil != err {
+				// TODO: reconnect
+				return
+			}
+
+			if sz == KEEP_ALIVE_MAGIC {
+				binary.Read(s, binary.BigEndian, &sz)
+				io.CopyN(ioutil.Discard, s, int64(sz))
+			} else {
+				ps := make([]adapter.Packet, 0, sz)
+				for idx := int64(sz); idx > 0; idx-- {
+					binary.Read(s, binary.BigEndian, &sz)
+					buf := make([]uint8, sz)
+					io.ReadFull(s, buf)
+					ps = append(ps, buf)
+				}
+				sessionAdapter.l2r <- ps
+			}
+		}
+
+	}()
+	go func() {
+		// remote to local
+		timer := time.NewTicker(time.Second * 3)
+		rand := rand.New(rand.NewSource(time.Now().Unix()))
+		for {
+			select {
+			case ps := <-sessionAdapter.r2l:
+				sz := uint32(len(ps))
+				binary.Write(s, binary.BigEndian, sz)
+				for _, p := range ps {
+					sz = uint32(len(p))
+					binary.Write(s, binary.BigEndian, sz)
+					s.Write(p)
+				}
+
+			case <-timer.C:
+				sz := KEEP_ALIVE_MAGIC
+				if err := binary.Write(s, binary.BigEndian, sz); nil != err {
+					// TODO: reconnect
+					return
+				}
+				sz = uint32(rand.Intn(int(MAX_KEEPALIVE_SIZE)))
+				if sz == 0 {
+					sz = 1
+				}
+				binary.Write(s, binary.BigEndian, sz)
+				io.CopyN(s, rand, int64(sz))
+			}
+		}
+	}()
+
+	return sessionAdapter, nil
 }

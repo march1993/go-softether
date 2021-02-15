@@ -4,5 +4,6 @@
     "Host": "example.com",
     "Port": 5555,
     "HubName": "DEFAULT",
-    "InsecureSkipVerify": false
+    "InsecureSkipVerify": false,
+    "LocalAdapterMAC": "5e:22:33:44:55:66"
 }

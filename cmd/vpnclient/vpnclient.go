@@ -4,8 +4,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"go-softether/adapter"
 	"go-softether/cedar"
 	"go-softether/mayaqua"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 var (
@@ -115,6 +119,49 @@ func connectToServer(host string, port int, username, hashedPassword, hubName st
 
 		conn.StartTunnelingMode()
 
-		return conn.Session.Main()
+		left, err := adapter.CreateLocalMachineAdapter("feth0", config.LocalAdapterMAC)
+		if nil != err {
+			return err
+		}
+		defer left.Destroy()
+
+		right, err := conn.Session.Main()
+		if nil != err {
+			return err
+		}
+		defer right.Destroy()
+
+		go func() {
+			_ = adapter.InvokeDHCP(left)
+		}()
+
+		c := make(chan os.Signal)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-c
+			left.Destroy()
+			right.Destroy()
+			os.Exit(0)
+		}()
+
+		return pipe(left, right)
 	}
+}
+
+func pipe(left, right adapter.Adapter) error {
+	f := func(left, right adapter.Adapter) error {
+		for {
+			ps, err := left.Read()
+			if nil != err {
+				return err
+			}
+			err = right.Write(ps)
+			if nil != err {
+				return err
+			}
+		}
+	}
+
+	go f(left, right)
+	return f(right, left)
 }
