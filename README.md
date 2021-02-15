@@ -48,3 +48,6 @@ s.WTFWriteRaw([]byte{0, 1, 2, 3, 4})
 ```
 I don't why I need it to operate on my machine.
 
+## Reference
+* https://github.com/SoftEtherVPN/SoftEtherVPN/
+* https://github.com/zerotier/ZeroTierOne/blob/master/osdep/MacEthernetTapAgent.c
