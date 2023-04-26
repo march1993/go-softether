@@ -17,10 +17,10 @@ func (a *sessionAdapter) Destroy() {
 }
 
 func (a *sessionAdapter) Read() (p []adapter.Packet, err error) {
-	return <-a.l2r, nil
+	return <-a.r2l, nil
 }
 
 func (a *sessionAdapter) Write(p []adapter.Packet) (err error) {
-	a.r2l <- p
+	a.l2r <- p
 	return nil
 }

@@ -216,7 +216,7 @@ func (c *Connection) ClientUploadAuth2() (*http.Request, error) {
 	return mayaqua.HttpClientSend(c.firstSock, p)
 }
 
-// PackLoginWithAnonymous pack login with anonymouse
+// PackLoginWithAnonymous pack login with anonymous
 func PackLoginWithAnonymous(hubname, username string) *mayaqua.Pack {
 	// Validate arguments
 	if hubname == "" || username == "" {

@@ -5,5 +5,28 @@
     ],
     "files.exclude": {
         "vendor": true
-    }
+    },
+    "cSpell.words": [
+        "cfroms",
+        "ctos",
+        "feth",
+        "lladdr",
+        "ndrvfd",
+        "rudp",
+        "softeher",
+        "softether",
+        "winver",
+        "rawurl",
+        "authtype",
+        "hubname",
+        "mayaqua",
+        "cedar",
+        "ruri",
+        "urlpkg",
+        "alives",
+        "varints",
+        "idempotency",
+        "vpnsvc",
+        "opensslengine"
+    ]
 }

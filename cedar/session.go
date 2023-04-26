@@ -68,7 +68,7 @@ func (se *Session) Main() (adapter.Adapter, error) {
 	}
 
 	go func() {
-		// local to remote
+		// remote to local
 		for {
 			sz := uint32(0)
 			if err := binary.Read(s, binary.BigEndian, &sz); nil != err {
@@ -87,18 +87,18 @@ func (se *Session) Main() (adapter.Adapter, error) {
 					io.ReadFull(s, buf)
 					ps = append(ps, buf)
 				}
-				sessionAdapter.l2r <- ps
+				sessionAdapter.r2l <- ps
 			}
 		}
 
 	}()
 	go func() {
-		// remote to local
+		// local to remote
 		timer := time.NewTicker(time.Second * 3)
 		rand := rand.New(rand.NewSource(time.Now().Unix()))
 		for {
 			select {
-			case ps := <-sessionAdapter.r2l:
+			case ps := <-sessionAdapter.l2r:
 				sz := uint32(len(ps))
 				binary.Write(s, binary.BigEndian, sz)
 				for _, p := range ps {
