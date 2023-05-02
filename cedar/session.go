@@ -59,7 +59,7 @@ func (se *Session) Main() (adapter.Adapter, error) {
 	s := se.Connection.tcp[0]
 
 	// WTF: I don't know why the following line is needed, other wise, an OpenSSL protocol version unsupported error is returned
-	s.WTFWriteRaw([]byte{0, 1, 2, 3, 4})
+	// s.WTFWriteRaw([]byte{0, 1, 2, 3, 4})
 
 	sessionAdapter := &sessionAdapter{
 		Session: se,
@@ -73,7 +73,6 @@ func (se *Session) Main() (adapter.Adapter, error) {
 			sz := uint32(0)
 			if err := binary.Read(s, binary.BigEndian, &sz); nil != err {
 				// TODO: reconnect
-				return
 			}
 
 			if sz == KEEP_ALIVE_MAGIC {

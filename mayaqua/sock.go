@@ -8,7 +8,7 @@ import (
 
 // Sock used by go-softether
 type Sock struct {
-	*tls.Conn
+	conn     *tls.Conn
 	raw      net.Conn
 	reader   *bufio.Reader
 	RemoteIP string
@@ -23,12 +23,20 @@ func (s *Sock) Read(p []byte) (n int, err error) {
 	return s.reader.Read(p)
 }
 
+func (s *Sock) Write(p []byte) (n int, err error) {
+	return s.conn.Write(p)
+}
+
+func (s *Sock) Close() error {
+	return s.conn.Close()
+}
+
 // NewSock new sock
 func NewSock(s *tls.Conn, r net.Conn) *Sock {
 	return &Sock{
-		Conn:     s,
+		conn:     s,
 		raw:      r,
-		reader:   bufio.NewReaderSize(s, 32*1024),
+		reader:   bufio.NewReader(s),
 		RemoteIP: s.RemoteAddr().(*net.TCPAddr).IP.String(),
 	}
 }

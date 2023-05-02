@@ -90,10 +90,8 @@ func ReadPack(r io.Reader) (*Pack, error) {
 	for i := uint32(0); i < num; i++ {
 		if e, err := ReadElement(r); nil != err {
 			return nil, err
-		} else {
-			if err := pack.AddElement(e); nil != err {
-				return nil, err
-			}
+		} else if err := pack.AddElement(e); nil != err {
+			return nil, err
 		}
 	}
 

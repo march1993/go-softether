@@ -42,11 +42,11 @@ sudo ./vpnclient
 ```
 
 ## Trouble shooting
-If you encounter problem related with SSL communication, please try remove the following line in `session.go`,
+If you encounter problem related with SSL communication, please try add the following line in `session.go`,
 ```golang
 s.WTFWriteRaw([]byte{0, 1, 2, 3, 4})
 ```
-I don't why I need it to operate on my machine.
+I don't why I need it to operate on my machine, maybe it is openssl version related since there is no problem when I build softether on my own debian machine with openssl 1.1.1.
 
 ## Reference
 * https://github.com/SoftEtherVPN/SoftEtherVPN/
